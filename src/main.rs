@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 use rodio::{Decoder, OutputStream, Sink, Source};
 use egui::{ahash::HashMap, IconData, TextEdit, ViewportBuilder};
 use egui_dnd;
@@ -46,9 +46,16 @@ struct SongInfo {
 struct AlbumInfo{
     songs: Vec<usize>
 }
+
 #[derive(Clone, Default)]
 struct LibraryInfo{
     albums: HashMap<(String, String), AlbumInfo>
+}
+
+#[derive(Clone, Default, Hash)]
+struct QueueEntry{
+    song_index: usize,
+    uid: usize
 }
 
 struct PlayerApp {
@@ -57,8 +64,9 @@ struct PlayerApp {
     song_info: Vec<SongInfo>,               //list of all songs recognized by player, paths, names durations, cached
     song_current_position: Option<usize>,   //index of the track currently playing, None when nothing playing
     
-    queue_indices: Vec<usize>,              //list of indices into cached song info, for quicker deletion/addition and no duplicated info
-    queue_current_position: usize,  //index into the list of indices, stores where we are in that queue of indices// None when queue is empty and nothing playing
+    queue_indices: Vec<QueueEntry>,         //list of indices into cached song info, for quicker deletion/addition and no duplicated info
+    queue_next_uid: usize,                  //uid for egui_dnd's sorting
+    queue_current_position: usize,          //index into the list of indices, stores where we are in that queue of indices// None when queue is empty and nothing playing
     progress: f32, // 0.0–1.0
     
     filter_text: String,
@@ -195,7 +203,7 @@ impl PlayerApp {
 
         if self.queue_current_position < self.queue_indices.len(){
             self.playing = true;
-            self.song_current_position = Some(self.queue_indices[self.queue_current_position]);
+            self.song_current_position = Some(self.queue_indices[self.queue_current_position].song_index);
             self.play_immediately_with_index(self.song_current_position.unwrap());
         }else{
             self.playing = false;
@@ -204,7 +212,12 @@ impl PlayerApp {
     }
 
     fn add_song_to_queue_with_index(&mut self, index: usize){
-        self.queue_indices.push(index);
+        let e = QueueEntry{
+            song_index: index,
+            uid: self.queue_next_uid,
+        };
+        self.queue_next_uid += 1;
+        self.queue_indices.push(e);
     }
 
     fn play(&mut self){
@@ -214,7 +227,7 @@ impl PlayerApp {
         }
         if self.queue_current_position >= self.queue_indices.len() {
             self.queue_current_position = 0;            
-            self.song_current_position = Some(self.queue_indices[self.queue_current_position]);
+            self.song_current_position = Some(self.queue_indices[self.queue_current_position].song_index);
             self.play_immediately_with_index(self.song_current_position.unwrap());
         }
         self.playing = true;
@@ -256,7 +269,7 @@ impl PlayerApp {
             //go back in queue
             self.audio_sink.clear();
             self.queue_current_position -= 1;
-            let song_index = self.queue_indices[self.queue_current_position];
+            let song_index = self.queue_indices[self.queue_current_position].song_index;
             self.play_immediately_with_index(song_index);
         }else{
             self.seek_to(0.0);
@@ -287,24 +300,52 @@ impl PlayerApp {
     fn queue_album(&mut self, song_info: SongInfo) {
         let album_artist = song_info.artist.clone().split(|c: char| c == ',' || c == '&' || c == '/').map(|s| s.trim()).find(|s| !s.is_empty()).map(|s| s.to_string());
         let album_key = (song_info.album.clone(), album_artist.unwrap_or(song_info.artist.clone()));
+        let mut album_songs: Option<Vec<usize>> = None;
         if let Some(album) = self.library.albums.get_mut(&album_key) {
-            album.songs.sort_by(|a, b| {
+            album_songs = Some(album.songs.clone());
+        }
+
+        //avoiding double borrow...
+        if album_songs.is_some(){
+            let mut aos = album_songs.unwrap();
+            aos.sort_by(|a, b| {
                 self.song_info[*a].track_number.unwrap_or(usize::MAX).cmp(&self.song_info[*b].track_number.unwrap_or(usize::MAX))
             });
-
-            for i in 0..album.songs.len() {
-                self.queue_indices.push(album.songs[i].clone());
+    
+            for i in 0..aos.len() {
+                self.add_song_to_queue_with_index(aos[i]);
             }
         }
     }
 
     fn shuffle_play(&mut self){
+        self.queue_indices = (0..self.song_info.len())
+            .map(|i| {
+                let e = QueueEntry{
+                    song_index: i,
+                    uid: self.queue_next_uid
+                };
+                self.queue_next_uid += 1;
+                e
+            }).collect();
+        self.shuffle_queue();
+    }
+
+    fn shuffle_queue(&mut self){
         self.audio_sink.clear();
-        self.queue_indices = (0..self.song_info.len()).collect();
         let mut rng = rng();
         self.queue_indices.shuffle(&mut rng);
         self.queue_current_position = 0;
-        self.play_immediately_with_index(self.queue_indices[0]);
+        self.play_immediately_with_index(self.queue_indices[0].song_index);
+    }
+
+    fn clear_queue(&mut self){
+        self.queue_next_uid = 0;
+        self.queue_current_position = 0;
+        self.queue_indices = Vec::new();
+        self.audio_sink.clear();
+        self.song_current_position = None;
+        self.playing = false;
     }
 }
 
@@ -332,6 +373,7 @@ impl Default for PlayerApp {
             song_current_position: None,
 
             queue_indices: Vec::new(),
+            queue_next_uid: 0,
             queue_current_position: 0,
             progress: 0.0,
 
@@ -485,7 +527,6 @@ impl eframe::App for PlayerApp {
                 }
             }
             ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
             ui.add(
                 TextEdit::singleline(&mut self.filter_text)
@@ -567,7 +608,7 @@ impl eframe::App for PlayerApp {
                             if response.clicked() {
                                 self.queue_current_position = 0;
                                 self.queue_indices = Vec::new();                                
-                                self.queue_indices.push(filtered_song_indices[i]);
+                                self.add_song_to_queue_with_index(filtered_song_indices[i]);
                                 self.play_immediately_with_index(filtered_song_indices[i]);
                             }
         
@@ -595,24 +636,24 @@ impl eframe::App for PlayerApp {
                         ui.horizontal(|ui|{
                             ui.label("Queue");
                             if ui.button("Clear").clicked(){
-                                self.queue_current_position = 0;
-                                self.queue_indices = Vec::new();
-                                self.audio_sink.clear();
-                                self.song_current_position = None;
-                                self.playing = false;
+                                self.clear_queue();
+                            }
+                            if ui.button("Shuffle Queue").clicked(){
+                                self.shuffle_queue();
                             }
                         });
                         
                         ui.separator();
-                        egui::ScrollArea::vertical().id_salt("QueueSongs").show(ui, |ui| {
+                        egui::ScrollArea::vertical().auto_shrink([false, true]).id_salt("QueueSongs").show(ui, |ui| {
                             let mut remove: Option<usize> = None;
                             let mut immedate_queue: Option<usize> = None;                    
                             let mut immediate_play: Option<usize> = None;
                             let inds = (self.song_current_position, self.queue_current_position);
-                            let response = egui_dnd::dnd(ui, "dnd_queue").show_vec(&mut self.queue_indices, |ui, item, handle, state|{
+                            let response = egui_dnd::dnd(ui, "dnd_queue")
+                                .show_vec(&mut self.queue_indices, |ui, item, handle, state|{
                                 handle.ui(ui, |ui|{
                                     ui.set_width(ui.available_width() - 10.0);
-                                    let song_index = *item;
+                                    let song_index = item.song_index;
                                     let song = self.song_info[song_index].clone();
                                     let col_width = ui.available_width() - 35.0;
                                     let font_size = ui.style().text_styles.get(&egui::TextStyle::Body).map(|p| p.size).unwrap_or(14.0);
@@ -650,7 +691,7 @@ impl eframe::App for PlayerApp {
                             });
 
                             if response.is_dragging() && self.playing {
-                                let curr_playing_idx = self.queue_indices.iter().position(|x| *x == inds.0.unwrap());
+                                let curr_playing_idx = self.queue_indices.iter().position(|x| x.song_index == inds.0.unwrap());
                                 self.queue_current_position = curr_playing_idx.expect("failed to find current song in queue :SHOULDNT HAPPEN");
                             }
                             if response.is_drag_finished() {
@@ -658,10 +699,10 @@ impl eframe::App for PlayerApp {
                             }
                             if immediate_play.is_some(){
                                 self.queue_current_position = immediate_play.unwrap();
-                                self.play_immediately_with_index(self.queue_indices[immediate_play.unwrap()]);
+                                self.play_immediately_with_index(self.queue_indices[immediate_play.unwrap()].song_index);
                             }
                             if immedate_queue.is_some(){
-                                self.add_song_to_queue_with_index(self.queue_indices[immedate_queue.unwrap()]);
+                                self.add_song_to_queue_with_index(self.queue_indices[immedate_queue.unwrap()].song_index);
                             }
                             if remove.is_some(){
                                 println!("REmove");
@@ -671,7 +712,7 @@ impl eframe::App for PlayerApp {
                                     self.audio_sink.clear();
                                     if self.queue_current_position < self.queue_indices.len() && self.queue_indices.len() > 1{
                                         println!("remove valid restart");
-                                        self.play_immediately_with_index(self.queue_indices[self.queue_current_position]);
+                                        self.play_immediately_with_index(self.queue_indices[self.queue_current_position].song_index);
                                     }
                                 }
                             }
