@@ -23,8 +23,9 @@ Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
 
 ```bash
 git clone https://github.com/will-ixs/Coral.git
-cd Coral
+cd ./Coral
 cargo build --release
+cp -r ./assets ./target/release
 ```
 
 The compiled binary will be in:
@@ -32,6 +33,7 @@ The compiled binary will be in:
 ```bash
 target/release/Coral
 ```
+It can be moved, but keep the assets folder in the same directory.
 
 ## Usage
 
