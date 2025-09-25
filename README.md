@@ -7,7 +7,7 @@ A lightweight, fast music player** built in Rust. Designed for simplicity, minim
 ## Features
 
 - Add directories and scan local audio files (MP3, WAV, FLAC, etc.)
-- ⏯ Basic controls: Play, Pause, Next, Previous
+- Basic controls: Play, Pause, Next, Previous
 - Shuffle All and Queue Management 
 - Lightweight and efficient
 
