@@ -146,7 +146,7 @@ impl PlayerApp {
                     new_song.artist = prim_tag.get_string(&tag::ItemKey::TrackArtist).unwrap_or("Unknown Artist").to_string();
                     new_song.track = prim_tag.get_string(&tag::ItemKey::TrackTitle).unwrap_or("Unknown Title").to_string();
                     new_song.album = prim_tag.get_string(&tag::ItemKey::AlbumTitle).unwrap_or("Unknown Album").to_string();
-                    new_song.track_number = Some(prim_tag.get_string(&tag::ItemKey::TrackNumber).unwrap().parse::<usize>().expect("Failed to parse tracknumber"));
+                    new_song.track_number = Some(prim_tag.get_string(&tag::ItemKey::TrackNumber).unwrap().parse::<usize>().unwrap_or(usize::MAX));
                 } else {
                     let file_name = path.file_stem().and_then(|os| os.to_str()).unwrap_or("Unknown - Unknown").to_string();
                     let artist_title = file_name.split_at_checked(file_name.find("-").expect("rename file to have Artist - Title"));
