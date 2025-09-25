@@ -1,8 +1,8 @@
 # Coral
 
-A lightweight, fast music player** built in Rust. Designed for simplicity, minimal resource usage, and smooth playback.
+A lightweight, fast music player built in Rust. Designed for simplicity, minimal resource usage, and smooth playback.
 
-![Coral Screenshot](screenshots/screenshot1.png) <!-- Optional: Replace with your image -->
+![Coral Screenshot](screenshots/screenshot1.png)
 
 ## Features
 
