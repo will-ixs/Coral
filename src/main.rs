@@ -1,4 +1,4 @@
-// #![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 use rodio::{Decoder, OutputStream, Sink, Source};
 use egui::{ahash::HashMap, text::{LayoutJob, TextFormat}, Align, Color32, IconData, TextEdit, ViewportBuilder};
 use egui_dnd::{self};
