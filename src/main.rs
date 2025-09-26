@@ -1,6 +1,6 @@
 // #![windows_subsystem = "windows"]
 use rodio::{Decoder, OutputStream, Sink, Source};
-use egui::{ahash::HashMap, text::{LayoutJob, TextFormat}, Align, Align2, Color32, IconData, TextEdit, ViewportBuilder};
+use egui::{ahash::HashMap, text::{LayoutJob, TextFormat}, Align, Color32, IconData, TextEdit, ViewportBuilder};
 use egui_dnd::{self};
 use eframe::{egui, Storage, NativeOptions};
 use core::{f32};
@@ -586,11 +586,11 @@ impl eframe::App for PlayerApp {
                             let desired_size = egui::vec2(ui.available_width() - 15.0, 24.0);
                             let ar_string = album.clone() + " - " + &artist.clone();
                             let enabled = self.enabled_album.get(&album_hash.clone()).unwrap_or(&false).clone();
+                            let col_width = (ui.available_width() - 10.0) / 2.5;
+                            let font_size = ui.style().text_styles.get(&egui::TextStyle::Body).map(|p| p.size).unwrap_or(14.0);
+                            let approx_char_width = (font_size * 0.6).max(4.0);
+                            let max_chars = (col_width / approx_char_width).floor() as usize; 
                             ui.allocate_ui(desired_size, |ui|{
-                                let col_width = (ui.available_width() - 10.0) / 2.0;
-                                let font_size = ui.style().text_styles.get(&egui::TextStyle::Body).map(|p| p.size).unwrap_or(14.0);
-                                let approx_char_width = (font_size * 0.6).max(4.0);
-                                let max_chars = (col_width / approx_char_width).floor() as usize; 
                                 let col_response = egui::CollapsingHeader::new("").id_salt(ar_string.as_str())
                                     .default_open(false)
                                     .open(Some(enabled))
@@ -608,13 +608,14 @@ impl eframe::App for PlayerApp {
                                                 song.duration.as_secs() / 60,
                                                 song.duration.as_secs() % 60
                                             );
-
-                                            if ui.selectable_label(Some(song_index) == self.song_current_position, label).clicked() {
-                                                self.queue_current_position = 0;
-                                                self.queue_indices = Vec::new();                                
-                                                self.add_song_to_queue_with_index(filtered_song_indices[song_index]);
-                                                self.play_immediately_with_index(filtered_song_indices[song_index]);
-                                            }
+                                            ui.allocate_ui_with_layout(ui.available_size(), egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui|{
+                                                if ui.selectable_label(Some(song_index) == self.song_current_position, label).clicked() {
+                                                    self.queue_current_position = 0;
+                                                    self.queue_indices = Vec::new();                                
+                                                    self.add_song_to_queue_with_index(filtered_song_indices[song_index]);
+                                                    self.play_immediately_with_index(filtered_song_indices[song_index]);
+                                                }
+                                            });
                                         }
                                     });
                                 let mut job = LayoutJob::default();
@@ -635,7 +636,7 @@ impl eframe::App for PlayerApp {
                                 real_header_rect.max.x = ui.available_width() - 15.0;
                                 let real_header_res = ui.allocate_rect(real_header_rect, egui::Sense::click());
                                 let text_y = real_header_rect.center().y;
-                                let spacing = 25.0;
+                                let spacing = 20.0;
                                 let left = egui::pos2(real_header_rect.left() + spacing, text_y);
                                 let right = egui::pos2(real_header_rect.right() - spacing, text_y);
                                 
@@ -668,51 +669,6 @@ impl eframe::App for PlayerApp {
                                 }
                                 });                 
                             });
-                        }
-
-                        {
-                        //     if selected {
-                        //         ui.painter().rect_filled(rect, 4.0, ui.visuals().selection.bg_fill);
-                        //     }else{
-                        //         ui.painter().rect_filled(rect, 4.0, ui.visuals().widgets.inactive.bg_fill);
-                        //     }
-
-                        //     let text_y = rect.center().y;
-                        //     let left = egui::pos2(rect.left() + 4.0, text_y);
-                        //     let center = egui::pos2(rect.center().x, text_y);
-                        //     let right = egui::pos2(rect.right() - 4.0, text_y);
-                            
-                        //     ui.painter().text(left, egui::Align2::LEFT_CENTER, 
-                        //         PlayerApp::ellipsize(song.track.clone(), max_chars), 
-                        //         egui::TextStyle::Body.resolve(ui.style()), ui.visuals().text_color());
-                            
-                        //     ui.painter().text(center, egui::Align2::CENTER_CENTER, 
-                        //         PlayerApp::ellipsize(song.artist.clone(), max_chars), 
-                        //         egui::TextStyle::Body.resolve(ui.style()), ui.visuals().text_color());
-                            
-                        //     ui.painter().text(right, egui::Align2::RIGHT_CENTER, 
-                        //         PlayerApp::ellipsize(song.album.clone(), max_chars), 
-                        //         egui::TextStyle::Body.resolve(ui.style()), ui.visuals().text_color());                         
-
-                        //     if response.clicked() {
-                        //         self.queue_current_position = 0;
-                        //         self.queue_indices = Vec::new();                                
-                        //         self.add_song_to_queue_with_index(filtered_song_indices[i]);
-                        //         self.play_immediately_with_index(filtered_song_indices[i]);
-                        //     }
-        
-                        //     response.context_menu(|ui| {
-                        //         if ui.button("Queue Song").clicked() {
-                        //             println!("Added '{}' to queue!", song.track.clone());
-                        //             self.add_song_to_queue_with_index(i);
-                        //             ui.close(); 
-                        //         }                                
-                        //         if ui.button("Queue Album").clicked() {
-                        //             self.queue_album(song);
-                        //             ui.close(); 
-                        //         }
-                        //     });
-                        // }
                         }
                     });
                 });
