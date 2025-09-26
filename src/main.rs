@@ -609,12 +609,18 @@ impl eframe::App for PlayerApp {
                                                 song.duration.as_secs() % 60
                                             );
                                             ui.allocate_ui_with_layout(ui.available_size(), egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui|{
-                                                if ui.selectable_label(Some(song_index) == self.song_current_position, label).clicked() {
+                                                let res = ui.selectable_label(Some(song_index) == self.song_current_position, label);
+                                                if res.clicked() {
                                                     self.queue_current_position = 0;
                                                     self.queue_indices = Vec::new();                                
                                                     self.add_song_to_queue_with_index(filtered_song_indices[song_index]);
                                                     self.play_immediately_with_index(filtered_song_indices[song_index]);
                                                 }
+                                                res.context_menu(|ui| {
+                                                    if ui.button("Queue Song").clicked(){
+                                                        self.add_song_to_queue_with_index(filtered_song_indices[song_index]);
+                                                    }
+                                                });
                                             });
                                         }
                                     });
