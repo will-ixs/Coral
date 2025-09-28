@@ -585,18 +585,35 @@ impl eframe::App for PlayerApp {
                             let (album, artist) = album_hash.clone();
                             let desired_size = egui::vec2(ui.available_width() - 15.0, 24.0);
                             let ar_string = album.clone() + " - " + &artist.clone();
-                            let enabled = self.enabled_album.get(&album_hash.clone()).unwrap_or(&false).clone();
+                            let enabled = self.enabled_album.get(&album_hash.clone()).unwrap_or(&false).clone() | !self.filter_text.is_empty();
                             let col_width = (ui.available_width() - 10.0) / 2.5;
                             let font_size = ui.style().text_styles.get(&egui::TextStyle::Body).map(|p| p.size).unwrap_or(14.0);
                             let approx_char_width = (font_size * 0.6).max(4.0);
-                            let max_chars = (col_width / approx_char_width).floor() as usize; 
+                            let max_chars = (col_width / approx_char_width).floor() as usize;
+
+                            let mut filtered_album_indices: Vec<usize> = Vec::default();
+                            for song_index in album_vec.songs {    
+                                if None == filtered_song_indices.iter().find(|i| **i == song_index){
+                                    continue;
+                                }
+                                filtered_album_indices.push(song_index);
+                            }
+                            let skip_album = if filtered_album_indices.len() > 0 { false } else { true };
+                            if skip_album {
+                                continue;
+                            }
                             ui.allocate_ui(desired_size, |ui|{
                                 let col_response = egui::CollapsingHeader::new("").id_salt(ar_string.as_str())
                                     .default_open(false)
                                     .open(Some(enabled))
                                     .show(ui, |ui| {
-                                        for song_index in album_vec.songs {
+                                        for song_index in filtered_album_indices {
                                             let song = self.song_info[song_index].clone();
+                                            
+                                            if None == filtered_song_indices.iter().find(|i| **i == song_index){
+                                                continue;
+                                            }
+
                                             let mut number = song.track_number.unwrap_or(usize::MAX);
                                             if number == usize::MAX{
                                                 number = 0;
