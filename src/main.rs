@@ -1,6 +1,6 @@
 #![windows_subsystem = "windows"]
 use rodio::{Decoder, OutputStream, Sink, Source};
-use egui::{ahash::HashMap, text::{LayoutJob, TextFormat}, Align, Color32, IconData, TextEdit, ViewportBuilder};
+use egui::{ahash::HashMap, Color32, IconData, TextEdit, ViewportBuilder};
 use egui_dnd::{self};
 use eframe::{egui, Storage, NativeOptions};
 use core::{f32};
@@ -527,22 +527,22 @@ impl eframe::App for PlayerApp {
         //Library & Queue
         let mut filtered_song_indices = Vec::new();
         egui::CentralPanel::default().show(ctx, |ui| {
-            //Input handling
-            if ui.input(|i| i.key_pressed(egui::Key::Space)) {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+            ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
+            
+            //Searching
+            let type_res = ui.add(
+                TextEdit::singleline(&mut self.filter_text)
+                    .hint_text("Search..."),
+            );
+            if !type_res.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Space)){
                 if self.playing {
                     self.pause();
                 }else{
                     self.play();
                 }
             }
-            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
-            
-            //Searching
-            ui.add(
-                TextEdit::singleline(&mut self.filter_text)
-                    .hint_text("Search..."),
-            );
+
             if !self.filter_text.eq(""){
                 for i in 0..self.song_info.len(){
                     if self.song_info[i].track.to_lowercase().contains(&self.filter_text.to_lowercase()){
@@ -609,10 +609,6 @@ impl eframe::App for PlayerApp {
                                     .show(ui, |ui| {
                                         for song_index in filtered_album_indices {
                                             let song = self.song_info[song_index].clone();
-                                            
-                                            if None == filtered_song_indices.iter().find(|i| **i == song_index){
-                                                continue;
-                                            }
 
                                             let mut number = song.track_number.unwrap_or(usize::MAX);
                                             if number == usize::MAX{
@@ -626,7 +622,17 @@ impl eframe::App for PlayerApp {
                                                 song.duration.as_secs() % 60
                                             );
                                             ui.allocate_ui_with_layout(ui.available_size(), egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui|{
-                                                let res = ui.selectable_label(Some(song_index) == self.song_current_position, label);
+                                                let res = ui.selectable_label(Some(song_index) == self.song_current_position, "");
+                                                let color = if res.hovered() { Color32::LIGHT_BLUE } else { Color32::LIGHT_GRAY };
+                                                
+                                                ui.painter().text([res.rect.left() + 20.0, res.rect.center().y].into(), egui::Align2::LEFT_CENTER, 
+                                                    label,
+                                                    egui::TextStyle::Body.resolve(ui.style()), color);
+                                                
+                                                ui.painter().text([res.rect.right() - 40.0, res.rect.center().y].into(), egui::Align2::RIGHT_CENTER, 
+                                                    PlayerApp::ellipsize(song.artist.clone(), max_chars), 
+                                                    egui::TextStyle::Body.resolve(ui.style()), color);         
+
                                                 if res.clicked() {
                                                     self.queue_current_position = 0;
                                                     self.queue_indices = Vec::new();                                
@@ -641,48 +647,25 @@ impl eframe::App for PlayerApp {
                                             });
                                         }
                                     });
-                                let mut job = LayoutJob::default();
-                                job.halign = Align::Min;
-                                job.append(
-                                    PlayerApp::ellipsize(ar_string.clone(), max_chars).as_str(),
-                                    0.0,
-                                    TextFormat {
-                                        font_id: egui::FontId::proportional(14.0),
-                                        color: Color32::WHITE,
-                                        valign: egui::Align::Min,
-                                        ..Default::default()
-                                    }
-                                );
-                                    
+
                                 let header_rect = col_response.header_response.rect;
                                 let mut real_header_rect = header_rect;
                                 real_header_rect.max.x = ui.available_width() - 15.0;
                                 let real_header_res = ui.allocate_rect(real_header_rect, egui::Sense::click());
-                                let text_y = real_header_rect.center().y;
-                                let spacing = 20.0;
-                                let left = egui::pos2(real_header_rect.left() + spacing, text_y);
-                                let right = egui::pos2(real_header_rect.right() - spacing, text_y);
+                                let color = if real_header_res.hovered() { Color32::LIGHT_BLUE } else { Color32::WHITE };
                                 
-                                if real_header_res.hovered(){
-                                    ui.painter().text(left, egui::Align2::LEFT_CENTER, 
-                                        PlayerApp::ellipsize(album.clone(), max_chars), 
-                                        egui::TextStyle::Body.resolve(ui.style()), Color32::LIGHT_BLUE);
-                                    
-                                    ui.painter().text(right, egui::Align2::RIGHT_CENTER, 
-                                        PlayerApp::ellipsize(artist.clone(), max_chars), 
-                                        egui::TextStyle::Body.resolve(ui.style()), Color32::LIGHT_BLUE);         
-                                }else{
-                                    ui.painter().text(left, egui::Align2::LEFT_CENTER, 
-                                        PlayerApp::ellipsize(album.clone(), max_chars), 
-                                        egui::TextStyle::Body.resolve(ui.style()), Color32::WHITE);
-                                    
-                                    ui.painter().text(right, egui::Align2::RIGHT_CENTER, 
-                                        PlayerApp::ellipsize(artist.clone(), max_chars), 
-                                        egui::TextStyle::Body.resolve(ui.style()), Color32::WHITE);    
-                                }
+                                ui.painter().text([real_header_rect.left() + 20.0, real_header_rect.center().y].into(), egui::Align2::LEFT_CENTER, 
+                                    PlayerApp::ellipsize(album.clone(), max_chars), 
+                                    egui::TextStyle::Body.resolve(ui.style()), color);
+                                
+                                ui.painter().text([real_header_rect.right() - 20.0, real_header_rect.center().y].into(), egui::Align2::RIGHT_CENTER, 
+                                    PlayerApp::ellipsize(artist.clone(), max_chars), 
+                                    egui::TextStyle::Body.resolve(ui.style()), color);         
+
                                 if real_header_res.clicked(){
                                     self.enabled_album.insert(album_hash, !enabled);
                                 }
+
                                 real_header_res.context_menu(|ui| {
                                     if ui.button("Queue Album").clicked() {
                                         if let Some(s) = self.song_info.iter().find(|s| s.album == album){
